@@ -1,0 +1,32 @@
+[project]
+name = "quiz-back"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Alexsandro Costa",email = "alexsandro.costa.silva63@aluno.ifce.edu.br"}
+]
+readme = "README.md"
+requires-python = ">=3.10, <4.0"
+dependencies = [
+    "django (>=5.2,<6.0)",
+    "python-dotenv (>=1.1.0,<2.0.0)"
+]
+
+[tool.poetry]
+packages = [{include = "quiz_back", from = "src"}]
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^25.1.0"
+isort = "^6.0.1"
+pylint = "^3.3.7"
+pylint-django = "^2.6.1"
+taskipy = "^1.14.1"
+pre-commit = "^4.2.0"
+
+[tool.taskipy.tasks]
+qos = { cmd = "black src & isort src & pylint src", help = "Executa todas as ferramentas de qualidade de código."}
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
