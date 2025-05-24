@@ -23,6 +23,8 @@ router = routers.DefaultRouter()
 urlpatterns = [
     path('', include(router.urls)),
     path("admin/", admin.site.urls),
+    path('api/', include('djoser.urls')),
+    path('api/auth/', include('djoser.urls.authtoken')),
     path('api/', include('core.urls')),
 
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
