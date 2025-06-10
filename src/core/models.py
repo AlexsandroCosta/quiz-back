@@ -95,3 +95,6 @@ class QuizPergunta(models.Model):
         verbose_name = "Pergunta do Quiz"
         verbose_name_plural = "Perguntas do Quiz"
         
+class Ranking(models.Model):
+    usuario = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
+    pontuacao = models.FloatField()
