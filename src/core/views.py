@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from .models import (
     Area,
     Conteudo,
@@ -18,6 +19,7 @@ from .serializers import (
 )
 
 class InfoViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
 
     @swagger_auto_schema(
         tags=['Informações'],
