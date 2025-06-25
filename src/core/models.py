@@ -86,7 +86,7 @@ class QuizConteudo(models.Model):
 class QuizPergunta(models.Model):
     quiz_conteudo = models.ForeignKey(QuizConteudo, on_delete=models.CASCADE)
     pergunta = models.ForeignKey(Pergunta, on_delete=models.CASCADE)
-    resposta = models.ForeignKey(Resposta, on_delete=models.CASCADE)
+    resposta = models.ForeignKey(Resposta, on_delete=models.CASCADE, blank=True, null=True)
 
     class Meta:
         constraints = [

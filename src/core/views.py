@@ -9,7 +9,11 @@ from .models import (
     Area,
     Conteudo,
     Quiz,
-    Ranking
+    Ranking,
+    QuizConteudo,
+    Pergunta,
+    QuizPergunta,
+    Resposta
 )
 from .serializers import (
     AreaSerializer,
@@ -17,6 +21,7 @@ from .serializers import (
     QuizSerializer,
     RankingSerializer
 )
+from django.db import transaction
 
 class InfoViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
@@ -96,8 +101,80 @@ class QuizViewSet(viewsets.ViewSet):
         serializer = QuizSerializer(data=data)
 
         if serializer.is_valid():
-            serializer.save()
+            try:
+                with transaction.atomic():
+                    quiz = serializer.save()
 
-            return Response('ok', status=200)
+                    data = {
+                        **serializer.data,
+                        'conteudos': []
+                    }
+
+                    for conteudo in conteudos:
+                        quizConteudo = QuizConteudo.objects.create(
+                            quiz = quiz,
+                            conteudo = conteudo
+                        )
+
+                        perguntas = Pergunta.objects.filter(
+                            nivel=quiz.nivel,
+                            conteudo=conteudo
+                        ).order_by('?')[:int(10/len(conteudos))]
+
+                        data_perguntas = []
+
+                        for pergunta in perguntas:
+                            data_respostas = [] 
+
+                            quizPergunta = QuizPergunta.objects.create(
+                                quiz_conteudo = quizConteudo,
+                                pergunta = pergunta
+                            )
+
+                            resposta = Resposta.objects.filter(pergunta=pergunta, correta=True).first()
+                            respostas_incorretas = Resposta.objects.filter(pergunta=pergunta, correta=False).order_by('?')[:3]
+
+                            data_respostas.append({
+                                'id': resposta.id,
+                                'resposta': resposta.resposta,
+                                'correta': resposta.correta
+                            })
+
+                            for incorreta in respostas_incorretas:
+                                data_respostas.append({
+                                    'id': incorreta.id,
+                                    'resposta': incorreta.resposta,
+                                    'correta': incorreta.correta
+                                })
+
+                            data_perguntas.append({
+                                'quizPergunta_id': quizPergunta.id,
+                                'pergunta': pergunta.pergunta,
+                                'respostas': data_respostas
+                            })
+
+                        data['conteudos'].append({
+                            'quizConteudo_id': quizConteudo.id,
+                            'conteudo_nome': conteudo.nome,
+                            'perguntas': data_perguntas
+                        })
+
+                return Response(data, status=201)
+            
+            except Exception as e:
+               return Response({'detail': f'Erro ao criar o quiz: {str(e)}'}, status=500)
         
         return Response(serializer.errors, status=400)
+    
+    @swagger_auto_schema(
+            tags=['Quiz'],
+            operation_description='Retorna a lista de quizes que o usuario gerou.',
+            responses={200: QuizSerializer(many=True)}
+    )
+    @action(detail=False, url_path='historico')
+    def historico(self, request):
+        quizes = Quiz.objects.filter(usuario=request.user).order_by('-criacao')
+
+        serializer = QuizSerializer(quizes, many=True)
+
+        return Response(serializer.data, status=200)
