@@ -23,29 +23,25 @@ from .serializers import (
 )
 from django.db import transaction
 
+
 class InfoViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
         tags=['Informações'],
         operation_description='Lista todas áreas de conhecimento registrada',
-        responses={
-            200: AreaSerializer(many=True)
-        }
+        responses={200: AreaSerializer(many=True)}
     )
     @action(detail=False, url_path='area')
     def area(self, request):
         areas = Area.objects.all()
         serializer = AreaSerializer(areas, many=True)
-
         return Response(serializer.data, status=200)
-    
+
     @swagger_auto_schema(
         tags=['Informações'],
-        operation_description='Lista todos conteúdos de uma area de conhecimento',
-        responses={
-            200: AreaSerializer(many=True)
-        }
+        operation_description='Lista todos conteúdos de uma área de conhecimento',
+        responses={200: AreaSerializer(many=True)}
     )
     @action(detail=False, url_path='(?P<id_area>[^/.]+)?/conteudo')
     def conteudo(self, request, id_area=None):
@@ -53,58 +49,50 @@ class InfoViewSet(viewsets.ViewSet):
             area = Area.objects.get(id=id_area)
             conteudos = Conteudo.objects.filter(area=area)
             serializer = ConteudoSerializer(conteudos, many=True)
-
             return Response(serializer.data, status=200)
-        
         except Area.DoesNotExist:
             return Response('Área não encontrada', status=404)
-    
+
     @swagger_auto_schema(
         tags=['Informações'],
         operation_description='Lista o ranking de usuários ordenado pela pontuação total.',
-        responses={
-            200: RankingSerializer(many=True)
-        }
+        responses={200: RankingSerializer(many=True)}
     )
     @action(detail=False, url_path='ranking')
     def ranking(self, request):
-        ranking = Ranking.objects.all().order_by('pontuacao')
+        ranking = Ranking.objects.all().order_by('-pontuacao')[:10]
         serializer = RankingSerializer(ranking, many=True)
-
         return Response(serializer.data, status=200)
 
+
 class QuizViewSet(viewsets.ViewSet):
-    
+
     @swagger_auto_schema(
         tags=['Quiz'],
-        operation_description='',
-        request_body=openapi.Schema(type=openapi.TYPE_OBJECT, properties={
-            "nivel" : openapi.Schema(type=openapi.TYPE_STRING, enum=['facil', 'medio', 'dificil']),
-            "area" : openapi.Schema(type=openapi.TYPE_INTEGER),
-            "conteudos" : openapi.Schema(type=openapi.TYPE_ARRAY, items=
-                                         openapi.Schema(type=openapi.TYPE_INTEGER))
-        }),
-        responses={
-            200: QuizSerializer(many=True)
-        }
+        operation_description='Cria um novo quiz baseado em conteúdos e nível.',
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "nivel": openapi.Schema(type=openapi.TYPE_STRING, enum=['facil', 'medio', 'dificil']),
+                "area": openapi.Schema(type=openapi.TYPE_INTEGER),
+                "conteudos": openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_INTEGER))
+            }),
+        responses={200: QuizSerializer(many=True)}
     )
     def create(self, request):
         data = request.data.copy()
-
         conteudos = Conteudo.objects.filter(id__in=data['conteudos'])
-        
+
         if len(conteudos) != len(data['conteudos']):
             return Response({'detail': 'Um ou mais conteúdos são inválidos.'}, status=400)
-        
-        data['usuario'] = request.user.id
 
+        data['usuario'] = request.user.id
         serializer = QuizSerializer(data=data)
 
         if serializer.is_valid():
             try:
                 with transaction.atomic():
                     quiz = serializer.save()
-
                     data = {
                         **serializer.data,
                         'conteudos': []
@@ -112,23 +100,22 @@ class QuizViewSet(viewsets.ViewSet):
 
                     for conteudo in conteudos:
                         quizConteudo = QuizConteudo.objects.create(
-                            quiz = quiz,
-                            conteudo = conteudo
+                            quiz=quiz,
+                            conteudo=conteudo
                         )
 
                         perguntas = Pergunta.objects.filter(
                             nivel=quiz.nivel,
                             conteudo=conteudo
-                        ).order_by('?')[:int(10/len(conteudos))]
+                        ).order_by('?')[:int(10 / len(conteudos))]
 
                         data_perguntas = []
 
                         for pergunta in perguntas:
-                            data_respostas = [] 
-
+                            data_respostas = []
                             quizPergunta = QuizPergunta.objects.create(
-                                quiz_conteudo = quizConteudo,
-                                pergunta = pergunta
+                                quiz_conteudo=quizConteudo,
+                                pergunta=pergunta
                             )
 
                             resposta = Resposta.objects.filter(pergunta=pergunta, correta=True).first()
@@ -160,21 +147,67 @@ class QuizViewSet(viewsets.ViewSet):
                         })
 
                 return Response(data, status=201)
-            
+
             except Exception as e:
-               return Response({'detail': f'Erro ao criar o quiz: {str(e)}'}, status=500)
-        
+                return Response({'detail': f'Erro ao criar o quiz: {str(e)}'}, status=500)
+
         return Response(serializer.errors, status=400)
-    
+
     @swagger_auto_schema(
-            tags=['Quiz'],
-            operation_description='Retorna a lista de quizes que o usuario gerou.',
-            responses={200: QuizSerializer(many=True)}
+        tags=['Quiz'],
+        operation_description='Retorna a lista de quizes que o usuário gerou.',
+        responses={200: QuizSerializer(many=True)}
     )
     @action(detail=False, url_path='historico')
     def historico(self, request):
         quizes = Quiz.objects.filter(usuario=request.user).order_by('-criacao')
-
         serializer = QuizSerializer(quizes, many=True)
-
         return Response(serializer.data, status=200)
+
+    @swagger_auto_schema(
+        tags=['Quiz'],
+        operation_description='Finaliza o quiz, calcula pontuação e atualiza o ranking.',
+        responses={200: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'mensagem': openapi.Schema(type=openapi.TYPE_STRING),
+                'pontuacao': openapi.Schema(type=openapi.TYPE_INTEGER),
+            }
+        )}
+    )
+    @action(detail=True, methods=['post'], url_path='finalizar')
+    def finalizar(self, request, pk=None):
+        try:
+            quiz = Quiz.objects.get(id=pk, usuario=request.user)
+        except Quiz.DoesNotExist:
+            return Response({'detail': 'Quiz não encontrado'}, status=404)
+
+        pontos = corrigir_quiz(quiz)
+
+        return Response({'mensagem': 'Quiz finalizado com sucesso!', 'pontuacao': pontos}, status=200)
+
+
+# Função de correção e pontuação
+def corrigir_quiz(quiz):
+    valores_por_nivel = {
+        'facil': 100,
+        'medio': 150,
+        'dificil': 200,
+    }
+
+    quiz_perguntas = QuizPergunta.objects.filter(quiz_conteudo__quiz=quiz)
+    valor_ponto = valores_por_nivel.get(quiz.nivel, 0)
+
+    pontos = 0
+    for qp in quiz_perguntas:
+        if qp.resposta and qp.resposta.correta:
+            pontos += valor_ponto
+
+    quiz.pontuacao = pontos
+    quiz.save()
+
+    ranking, created = Ranking.objects.get_or_create(usuario=quiz.usuario)
+    ranking.pontuacao += pontos
+    ranking.save()
+
+    return pontos
