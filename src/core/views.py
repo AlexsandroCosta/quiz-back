@@ -41,7 +41,7 @@ class InfoViewSet(viewsets.ViewSet):
     @swagger_auto_schema(
         tags=['Informações'],
         operation_description='Lista todos conteúdos de uma área de conhecimento',
-        responses={200: AreaSerializer(many=True)}
+        responses={200: ConteudoSerializer(many=True)}
     )
     @action(detail=False, url_path='(?P<id_area>[^/.]+)?/conteudo')
     def conteudo(self, request, id_area=None):

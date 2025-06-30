@@ -94,7 +94,15 @@ class QuizPergunta(models.Model):
         ]
         verbose_name = "Pergunta do Quiz"
         verbose_name_plural = "Perguntas do Quiz"
-        
+
 class Ranking(models.Model):
-    usuario = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
-    pontuacao = models.FloatField()
+    usuario = models.OneToOneField(get_user_model(), on_delete=models.CASCADE)
+    pontuacao = models.FloatField(default=0)
+
+    class Meta:
+        ordering = ['-pontuacao']
+        verbose_name = 'Ranking'
+        verbose_name_plural = 'Rankings'
+
+    def __str__(self):
+        return f"{self.usuario.username} - {self.pontuacao} pontos"
