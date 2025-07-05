@@ -167,6 +167,63 @@ class QuizViewSet(viewsets.ViewSet):
         return Response(serializer.errors, status=400)
     
     @swagger_auto_schema(
+        tags=['Quiz'],
+        operation_description='',
+        request_body=openapi.Schema(type=openapi.TYPE_ARRAY, items=
+                                    openapi.Schema(type=openapi.TYPE_OBJECT, properties={
+                                        'id_pergunta': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                        'id_resposta': openapi.Schema(type=openapi.TYPE_INTEGER)
+                                    })),
+        responses={200: 'ok'}
+    )
+    def update(self, request, pk):
+        try:
+            quiz = Quiz.objects.get(id=pk, usuario=request.user)
+            pontuacao = 0
+
+            match quiz.nivel:
+                case 'facil':
+                    ponto = 1
+                case 'medio':
+                    ponto = 2
+                case 'dificil':
+                    ponto = 3
+
+            perguntas = QuizPergunta.objects.filter(quiz_conteudo__quiz=quiz)
+            data = request.data.copy()
+            print(data)
+            for pergunta in perguntas:
+                for obj in data:
+                    if obj['id_pergunta'] == pergunta.id:
+                        try:
+                            resposta = Resposta.objects.get(id=obj['id_resposta'], pergunta=pergunta.pergunta)
+                            pergunta.resposta = resposta
+                            pergunta.save()
+
+                            if resposta.correta:
+                                pontuacao += ponto
+                            else:
+                                pontuacao -= ponto
+
+                        except Resposta.DoesNotExist:
+                            pass
+                        
+                        data.remove(obj)
+                        break
+
+            quiz.pontuacao = pontuacao
+            quiz.save()
+
+            ranking, _ = Ranking.objects.get_or_create(usuario=request.user)
+            ranking.pontuacao += pontuacao
+            ranking.save()
+
+            return Response({'id': pk}, status=200)
+        
+        except Quiz.DoesNotExist:
+            return Response({'detail': 'Quiz não encontrado.'}, status=404)
+
+    @swagger_auto_schema(
             tags=['Quiz'],
             operation_description='Retorna a lista de quizes que o usuario gerou.',
             responses={200: QuizSerializer(many=True)}

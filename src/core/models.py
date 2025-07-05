@@ -97,4 +97,4 @@ class QuizPergunta(models.Model):
         
 class Ranking(models.Model):
     usuario = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
-    pontuacao = models.FloatField()
+    pontuacao = models.FloatField(default=0)
