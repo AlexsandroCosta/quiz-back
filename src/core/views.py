@@ -191,7 +191,7 @@ class QuizViewSet(viewsets.ViewSet):
 
             perguntas = QuizPergunta.objects.filter(quiz_conteudo__quiz=quiz)
             data = request.data.copy()
-            print(data)
+            
             for pergunta in perguntas:
                 for obj in data:
                     if obj['id_pergunta'] == pergunta.id:
