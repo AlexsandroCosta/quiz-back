@@ -1,55 +1,53 @@
+from django.db import transaction
 from django.shortcuts import render
-from rest_framework import permissions, viewsets, authentication
-from rest_framework.decorators import action
-from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from rest_framework.response import Response
+from drf_yasg.utils import swagger_auto_schema
+from rest_framework import authentication, permissions, viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+
 from .models import (
     Area,
     Conteudo,
-    Quiz,
-    Ranking,
-    QuizConteudo,
+    Foto,
     Pergunta,
+    Quiz,
+    QuizConteudo,
     QuizPergunta,
+    Ranking,
     Resposta,
-    Foto
 )
 from .serializers import (
     AreaSerializer,
     ConteudoSerializer,
+    FotoSerializer,
     QuizSerializer,
     RankingSerializer,
-    FotoSerializer
 )
-from django.db import transaction
+
 
 class InfoViewSet(viewsets.ViewSet):
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
-        tags=['Informações'],
-        operation_description='Lista todas áreas de conhecimento registrada',
-        responses={
-            200: AreaSerializer(many=True)
-        }
+        tags=["Informações"],
+        operation_description="Lista todas áreas de conhecimento registrada",
+        responses={200: AreaSerializer(many=True)},
     )
-    @action(detail=False, url_path='area')
+    @action(detail=False, url_path="area")
     def area(self, request):
         areas = Area.objects.all()
         serializer = AreaSerializer(areas, many=True)
 
         return Response(serializer.data, status=200)
-    
+
     @swagger_auto_schema(
-        tags=['Informações'],
-        operation_description='Lista todos conteúdos de uma area de conhecimento',
-        responses={
-            200: AreaSerializer(many=True)
-        }
+        tags=["Informações"],
+        operation_description="Lista todos conteúdos de uma area de conhecimento",
+        responses={200: AreaSerializer(many=True)},
     )
-    @action(detail=False, url_path='(?P<id_area>[^/.]+)?/conteudo')
+    @action(detail=False, url_path="(?P<id_area>[^/.]+)?/conteudo")
     def conteudo(self, request, id_area=None):
         try:
             area = Area.objects.get(id=id_area)
@@ -57,48 +55,54 @@ class InfoViewSet(viewsets.ViewSet):
             serializer = ConteudoSerializer(conteudos, many=True)
 
             return Response(serializer.data, status=200)
-        
+
         except Area.DoesNotExist:
-            return Response('Área não encontrada', status=404)
-    
+            return Response("Área não encontrada", status=404)
+
     @swagger_auto_schema(
-        tags=['Informações'],
-        operation_description='Lista o ranking de usuários ordenado pela pontuação total.',
-        responses={
-            200: RankingSerializer(many=True)
-        }
+        tags=["Informações"],
+        operation_description="Lista o ranking de usuários ordenado pela pontuação total.",
+        responses={200: RankingSerializer(many=True)},
     )
-    @action(detail=False, url_path='ranking')
+    @action(detail=False, url_path="ranking")
     def ranking(self, request):
-        ranking = Ranking.objects.all().order_by('pontuacao')
+        ranking = Ranking.objects.all().order_by("pontuacao")
         serializer = RankingSerializer(ranking, many=True)
 
         return Response(serializer.data, status=200)
 
+
 class QuizViewSet(viewsets.ViewSet):
-    
+
     @swagger_auto_schema(
-        tags=['Quiz'],
-        operation_description='',
-        request_body=openapi.Schema(type=openapi.TYPE_OBJECT, properties={
-            "nivel" : openapi.Schema(type=openapi.TYPE_STRING, enum=['facil', 'medio', 'dificil']),
-            "area" : openapi.Schema(type=openapi.TYPE_INTEGER),
-            "conteudos" : openapi.Schema(type=openapi.TYPE_ARRAY, items=
-                                         openapi.Schema(type=openapi.TYPE_INTEGER))
-        }),
-        responses={
-            200: QuizSerializer(many=True)
-        }
+        tags=["Quiz"],
+        operation_description="",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "nivel": openapi.Schema(
+                    type=openapi.TYPE_STRING, enum=["facil", "medio", "dificil"]
+                ),
+                "area": openapi.Schema(type=openapi.TYPE_INTEGER),
+                "conteudos": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(type=openapi.TYPE_INTEGER),
+                ),
+            },
+        ),
+        responses={200: QuizSerializer(many=True)},
     )
     def create(self, request):
         data = request.data.copy()
 
-        conteudos = Conteudo.objects.filter(id__in=data['conteudos'])
-        
-        if len(conteudos) != len(data['conteudos']):
-            return Response({'detail': 'Um ou mais conteúdos são inválidos.'}, status=400)
-        
-        data['usuario'] = request.user.id
+        conteudos = Conteudo.objects.filter(id__in=data["conteudos"])
+
+        if len(conteudos) != len(data["conteudos"]):
+            return Response(
+                {"detail": "Um ou mais conteúdos são inválidos."}, status=400
+            )
+
+        data["usuario"] = request.user.id
 
         serializer = QuizSerializer(data=data)
 
@@ -107,76 +111,89 @@ class QuizViewSet(viewsets.ViewSet):
                 with transaction.atomic():
                     quiz = serializer.save()
 
-                    data = {
-                        **serializer.data,
-                        'conteudos': []
-                    }
+                    data = {**serializer.data, "conteudos": []}
 
                     for conteudo in conteudos:
                         quizConteudo = QuizConteudo.objects.create(
-                            quiz = quiz,
-                            conteudo = conteudo
+                            quiz=quiz, conteudo=conteudo
                         )
 
                         perguntas = Pergunta.objects.filter(
-                            nivel=quiz.nivel,
-                            conteudo=conteudo
-                        ).order_by('?')[:int(10/len(conteudos))]
+                            nivel=quiz.nivel, conteudo=conteudo
+                        ).order_by("?")[: int(10 / len(conteudos))]
 
                         data_perguntas = []
 
                         for pergunta in perguntas:
-                            data_respostas = [] 
+                            data_respostas = []
 
                             quizPergunta = QuizPergunta.objects.create(
-                                quiz_conteudo = quizConteudo,
-                                pergunta = pergunta
+                                quiz_conteudo=quizConteudo, pergunta=pergunta
                             )
 
-                            resposta = Resposta.objects.filter(pergunta=pergunta, correta=True).first()
-                            respostas_incorretas = Resposta.objects.filter(pergunta=pergunta, correta=False).order_by('?')[:3]
+                            resposta = Resposta.objects.filter(
+                                pergunta=pergunta, correta=True
+                            ).first()
+                            respostas_incorretas = Resposta.objects.filter(
+                                pergunta=pergunta, correta=False
+                            ).order_by("?")[:3]
 
-                            data_respostas.append({
-                                'id': resposta.id,
-                                'resposta': resposta.resposta,
-                                'correta': resposta.correta
-                            })
+                            data_respostas.append(
+                                {
+                                    "id": resposta.id,
+                                    "resposta": resposta.resposta,
+                                    "correta": resposta.correta,
+                                }
+                            )
 
                             for incorreta in respostas_incorretas:
-                                data_respostas.append({
-                                    'id': incorreta.id,
-                                    'resposta': incorreta.resposta,
-                                    'correta': incorreta.correta
-                                })
+                                data_respostas.append(
+                                    {
+                                        "id": incorreta.id,
+                                        "resposta": incorreta.resposta,
+                                        "correta": incorreta.correta,
+                                    }
+                                )
 
-                            data_perguntas.append({
-                                'quizPergunta_id': quizPergunta.id,
-                                'pergunta': pergunta.pergunta,
-                                'respostas': data_respostas
-                            })
+                            data_perguntas.append(
+                                {
+                                    "quizPergunta_id": quizPergunta.id,
+                                    "pergunta": pergunta.pergunta,
+                                    "respostas": data_respostas,
+                                }
+                            )
 
-                        data['conteudos'].append({
-                            'quizConteudo_id': quizConteudo.id,
-                            'conteudo_nome': conteudo.nome,
-                            'perguntas': data_perguntas
-                        })
+                        data["conteudos"].append(
+                            {
+                                "quizConteudo_id": quizConteudo.id,
+                                "conteudo_nome": conteudo.nome,
+                                "perguntas": data_perguntas,
+                            }
+                        )
 
                 return Response(data, status=201)
-            
+
             except Exception as e:
-               return Response({'detail': f'Erro ao criar o quiz: {str(e)}'}, status=500)
-        
+                return Response(
+                    {"detail": f"Erro ao criar o quiz: {str(e)}"}, status=500
+                )
+
         return Response(serializer.errors, status=400)
-    
+
     @swagger_auto_schema(
-        tags=['Quiz'],
-        operation_description='',
-        request_body=openapi.Schema(type=openapi.TYPE_ARRAY, items=
-                                    openapi.Schema(type=openapi.TYPE_OBJECT, properties={
-                                        'id_pergunta': openapi.Schema(type=openapi.TYPE_INTEGER),
-                                        'id_resposta': openapi.Schema(type=openapi.TYPE_INTEGER)
-                                    })),
-        responses={200: 'ok'}
+        tags=["Quiz"],
+        operation_description="",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_ARRAY,
+            items=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    "id_pergunta": openapi.Schema(type=openapi.TYPE_INTEGER),
+                    "id_resposta": openapi.Schema(type=openapi.TYPE_INTEGER),
+                },
+            ),
+        ),
+        responses={200: "ok"},
     )
     def update(self, request, pk):
         try:
@@ -184,21 +201,23 @@ class QuizViewSet(viewsets.ViewSet):
             pontuacao = 0
 
             match quiz.nivel:
-                case 'facil':
+                case "facil":
                     ponto = 1
-                case 'medio':
+                case "medio":
                     ponto = 2
-                case 'dificil':
+                case "dificil":
                     ponto = 3
 
             perguntas = QuizPergunta.objects.filter(quiz_conteudo__quiz=quiz)
             data = request.data.copy()
-            
+
             for pergunta in perguntas:
                 for obj in data:
-                    if obj['id_pergunta'] == pergunta.id:
+                    if obj["id_pergunta"] == pergunta.id:
                         try:
-                            resposta = Resposta.objects.get(id=obj['id_resposta'], pergunta=pergunta.pergunta)
+                            resposta = Resposta.objects.get(
+                                id=obj["id_resposta"], pergunta=pergunta.pergunta
+                            )
                             pergunta.resposta = resposta
                             pergunta.save()
 
@@ -209,7 +228,7 @@ class QuizViewSet(viewsets.ViewSet):
 
                         except Resposta.DoesNotExist:
                             pass
-                        
+
                         data.remove(obj)
                         break
 
@@ -220,50 +239,51 @@ class QuizViewSet(viewsets.ViewSet):
             ranking.pontuacao += pontuacao
             ranking.save()
 
-            return Response({'id': pk}, status=200)
-        
+            return Response({"id": pk}, status=200)
+
         except Quiz.DoesNotExist:
-            return Response({'detail': 'Quiz não encontrado.'}, status=404)
+            return Response({"detail": "Quiz não encontrado."}, status=404)
 
     @swagger_auto_schema(
-            tags=['Quiz'],
-            operation_description='Retorna a lista de quizes que o usuario gerou.',
-            responses={200: QuizSerializer(many=True)}
+        tags=["Quiz"],
+        operation_description="Retorna a lista de quizes que o usuario gerou.",
+        responses={200: QuizSerializer(many=True)},
     )
-    @action(detail=False, url_path='historico')
+    @action(detail=False, url_path="historico")
     def historico(self, request):
-        quizes = Quiz.objects.filter(usuario=request.user).order_by('-criacao')
+        quizes = Quiz.objects.filter(usuario=request.user).order_by("-criacao")
 
         serializer = QuizSerializer(quizes, many=True)
 
         return Response(serializer.data, status=200)
-    
+
+
 class Perfil(viewsets.ViewSet):
 
     @swagger_auto_schema(
-        tags=['users'],
-        operation_description='Adiciona nova foto de perfil',
-        request_body=FotoSerializer
+        tags=["users"],
+        operation_description="Adiciona nova foto de perfil",
+        request_body=FotoSerializer,
     )
-    @action(detail=False, methods=['post'], url_path='foto_perfil')
+    @action(detail=False, methods=["post"], url_path="foto_perfil")
     def adicona_foto(self, request):
         foto = request.FILES.get("foto")
 
         if not foto:
-            return Response({'detail': 'Nenhuma foto enviada.'}, status=400)
-        
+            return Response({"detail": "Nenhuma foto enviada."}, status=400)
+
         Foto.objects.filter(usuario=request.user).delete()
 
         foto = Foto.objects.create(usuario=request.user, foto=foto)
 
-        return Response('Foto de perfil adicionada com sucesso!', status=201)
-    
+        return Response("Foto de perfil adicionada com sucesso!", status=201)
+
     @swagger_auto_schema(
-        tags=['users'],
-        operation_description='Retorna foto de perfil de um usuario',
-        responses={200: FotoSerializer()}
+        tags=["users"],
+        operation_description="Retorna foto de perfil de um usuario",
+        responses={200: FotoSerializer()},
     )
-    @action(detail=False, methods=['get'], url_path='foto')
+    @action(detail=False, methods=["get"], url_path="foto")
     def foto(self, request):
         foto, _ = Foto.objects.get_or_create(usuario=request.user)
 
