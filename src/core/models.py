@@ -98,3 +98,7 @@ class QuizPergunta(models.Model):
 class Ranking(models.Model):
     usuario = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
     pontuacao = models.FloatField(default=0)
+
+class Foto(models.Model):
+    usuario = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
+    foto = models.ImageField(upload_to='fotos/', blank=True, null=True)

@@ -3,7 +3,8 @@ from .models import (
     Area, 
     Conteudo,
     Quiz,
-    Ranking
+    Ranking,
+    Foto
 )
 
 class AreaSerializer(serializers.ModelSerializer):
@@ -30,3 +31,8 @@ class RankingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ranking
         fields =['id', 'usuario', 'nome_usuario', 'pontuacao']
+
+class FotoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Foto
+        fields = '__all__'

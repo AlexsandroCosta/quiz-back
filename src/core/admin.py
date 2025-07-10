@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Area, Conteudo, Pergunta, Resposta, Quiz, QuizConteudo, QuizPergunta
+from .models import Area, Conteudo, Pergunta, Resposta, Quiz, QuizConteudo, QuizPergunta, Foto
 
 @admin.register(Area)
 class AreaAdmin(admin.ModelAdmin):
@@ -38,3 +38,7 @@ class QuizConteudoAdmin(admin.ModelAdmin):
 @admin.register(QuizPergunta)
 class QuizPerguntaAdmin(admin.ModelAdmin):
     list_display = ['quiz_conteudo', 'pergunta', 'resposta']
+
+@admin.register(Foto)
+class FotoAdmin(admin.ModelAdmin):
+    list_display = ['usuario', 'foto']

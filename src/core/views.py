@@ -13,13 +13,15 @@ from .models import (
     QuizConteudo,
     Pergunta,
     QuizPergunta,
-    Resposta
+    Resposta,
+    Foto
 )
 from .serializers import (
     AreaSerializer,
     ConteudoSerializer,
     QuizSerializer,
-    RankingSerializer
+    RankingSerializer,
+    FotoSerializer
 )
 from django.db import transaction
 
@@ -233,5 +235,38 @@ class QuizViewSet(viewsets.ViewSet):
         quizes = Quiz.objects.filter(usuario=request.user).order_by('-criacao')
 
         serializer = QuizSerializer(quizes, many=True)
+
+        return Response(serializer.data, status=200)
+    
+class Perfil(viewsets.ViewSet):
+
+    @swagger_auto_schema(
+        tags=['users'],
+        operation_description='Adiciona nova foto de perfil',
+        request_body=FotoSerializer
+    )
+    @action(detail=False, methods=['post'], url_path='foto_perfil')
+    def adicona_foto(self, request):
+        foto = request.FILES.get("foto")
+
+        if not foto:
+            return Response({'detail': 'Nenhuma foto enviada.'}, status=400)
+        
+        Foto.objects.filter(usuario=request.user).delete()
+
+        foto = Foto.objects.create(usuario=request.user, foto=foto)
+
+        return Response('Foto de perfil adicionada com sucesso!', status=201)
+    
+    @swagger_auto_schema(
+        tags=['users'],
+        operation_description='Retorna foto de perfil de um usuario',
+        responses={200: FotoSerializer()}
+    )
+    @action(detail=False, methods=['get'], url_path='foto')
+    def foto(self, request):
+        foto, _ = Foto.objects.get_or_create(usuario=request.user)
+
+        serializer = FotoSerializer(foto)
 
         return Response(serializer.data, status=200)
